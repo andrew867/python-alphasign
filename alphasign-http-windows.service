@@ -1,0 +1,13 @@
+# Windows Service Configuration for Alpha Sign HTTP Service
+# This is a template for Windows service configuration
+# Use with tools like NSSM (Non-Sucking Service Manager) or Windows Service Wrapper
+
+[Service]
+Name=AlphaSignHTTP
+DisplayName=Alpha Sign HTTP Service
+Description=HTTP service for controlling Alpha LED signs
+Executable=python.exe
+Arguments=C:\path\to\alphasign_http_service.py --host 0.0.0.0 --port 8888 --sign-ip 192.168.133.54 --sign-port 10001
+WorkingDirectory=C:\path\to\alphasign
+LogFile=C:\path\to\alphasign\alphasign-http.log
+Startup=auto

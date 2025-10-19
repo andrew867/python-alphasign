@@ -1,0 +1,33 @@
+[Unit]
+Description=Alpha Sign HTTP Service
+Documentation=https://github.com/prototux/python-alphasign
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=alphasign
+Group=alphasign
+WorkingDirectory=/opt/alphasign
+ExecStart=/usr/bin/python3 /opt/alphasign/alphasign_http_service.py --host 0.0.0.0 --port 8888 --sign-ip 192.168.133.54 --sign-port 10001
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=alphasign-http
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/alphasign-http.log
+ReadWritePaths=/opt/alphasign
+
+# Resource limits
+LimitNOFILE=1024
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

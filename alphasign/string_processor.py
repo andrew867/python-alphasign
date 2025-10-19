@@ -1,0 +1,211 @@
+"""
+Alpha Sign String Processing Module
+Based on the C++ implementation, converts human-readable strings to Alpha sign commands.
+"""
+
+class AlphaStringProcessor:
+    """
+    Processes human-readable strings and converts them to Alpha sign binary commands.
+    Supports all the string replacements from the original C++ implementation.
+    """
+    
+    # Line position constants
+    LINE_MIDDLE = 0
+    LINE_TOP = 1
+    LINE_BOTTOM = 2
+    LINE_FILL = 3
+    
+    def __init__(self):
+        self.current_line = " "  # Default to middle line
+        self.pending_text = ""
+        self.pending_memory = ""
+        
+    def set_current_line(self, line_opt):
+        """Set the current line on which text appears"""
+        line_map = {
+            self.LINE_MIDDLE: " ",
+            self.LINE_TOP: "\"",
+            self.LINE_BOTTOM: "&",
+            self.LINE_FILL: "0"
+        }
+        self.current_line = line_map.get(line_opt, " ")
+    
+    def new_text_file(self):
+        """Start a new text file"""
+        self.pending_text = ""
+        self.set_current_line(self.LINE_MIDDLE)
+    
+    def add_text(self, text):
+        """Add text to the current text file"""
+        self.pending_text += self.make_alpha(text)
+    
+    def finish_text_file(self, label):
+        """Finish the text file and return the data to send"""
+        mem = len(self.pending_text) + 8  # Allocate extra space
+        return f"A{label}{self.pending_text}"
+    
+    def make_alpha(self, text):
+        """
+        Convert human-readable string to Alpha sign binary format.
+        This is the core function that handles all the string replacements.
+        """
+        if not isinstance(text, str):
+            text = str(text)
+        
+        # Speed controls
+        text = text.replace("<SPEED:1>", chr(21))
+        text = text.replace("</SPEED:1>", chr(9))  # Reset to no speed
+        text = text.replace("<SPEED:2>", chr(22))
+        text = text.replace("</SPEED:2>", chr(9))  # Reset to no speed
+        text = text.replace("<SPEED:3>", chr(23))
+        text = text.replace("</SPEED:3>", chr(9))  # Reset to no speed
+        text = text.replace("<SPEED:4>", chr(24))
+        text = text.replace("</SPEED:4>", chr(9))  # Reset to no speed
+        text = text.replace("<SPEED:5>", chr(25))
+        text = text.replace("</SPEED:5>", chr(9))  # Reset to no speed
+        
+        # Colors
+        text = text.replace("<C:RED>", chr(28) + "1")
+        text = text.replace("</C:RED>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:GREEN>", chr(28) + "2")
+        text = text.replace("</C:GREEN>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:AMBER>", chr(28) + "3")
+        text = text.replace("</C:AMBER>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:DIMRED>", chr(28) + "4")
+        text = text.replace("</C:DIMRED>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:DIMGREEN>", chr(28) + "5")
+        text = text.replace("</C:DIMGREEN>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:BROWN>", chr(28) + "6")
+        text = text.replace("</C:BROWN>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:ORANGE>", chr(28) + "7")
+        text = text.replace("</C:ORANGE>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:YELLOW>", chr(28) + "8")
+        text = text.replace("</C:YELLOW>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:RAIN1>", chr(28) + "9")
+        text = text.replace("</C:RAIN1>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:RAIN2>", chr(28) + "A")
+        text = text.replace("</C:RAIN2>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:COLORMIX>", chr(28) + "B")
+        text = text.replace("</C:COLORMIX>", chr(28) + "C")  # Reset to auto
+        text = text.replace("<C:AUTO>", chr(28) + "C")
+        text = text.replace("</C:AUTO>", chr(28) + "C")  # Reset to auto
+        
+        # Fonts
+        text = text.replace("<F:SANS5>", chr(26) + "1")
+        text = text.replace("<F:SANS7>", chr(26) + "3")
+        text = text.replace("<F:SERIF7>", chr(26) + "5")
+        text = text.replace("<F:SERIF16>", chr(26) + "8")
+        text = text.replace("<F:SANS16>", chr(26) + "9")
+        
+        # Wide modes
+        text = text.replace("<WIDE:ON>", chr(29) + "01")
+        text = text.replace("<WIDE:OFF>", chr(29) + "00")
+        text = text.replace("<DWIDE:ON>", chr(29) + "11")
+        text = text.replace("<DWIDE:OFF>", chr(29) + "10")
+        
+        # Fixed width
+        text = text.replace("<FIXEDWIDTH:ON>", chr(29) + "41")
+        text = text.replace("<FIXEDWIDTH:OFF>", chr(29) + "40")
+        text = text.replace("<FIXED:ON>", chr(30) + "1")
+        text = text.replace("<FIXED:OFF>", chr(30) + "0")
+        
+        # Effects
+        text = text.replace("<SCROLL>", chr(27) + self.current_line + "a")
+        text = text.replace("<HOLD>", chr(27) + self.current_line + "b")
+        text = text.replace("<FLASH>", chr(27) + self.current_line + "c")
+        text = text.replace("<ROLL:UP>", chr(27) + self.current_line + "e")
+        text = text.replace("<ROLL:DOWN>", chr(27) + self.current_line + "f")
+        text = text.replace("<ROLL:LEFT>", chr(27) + self.current_line + "g")
+        text = text.replace("<ROLL:RIGHT>", chr(27) + self.current_line + "h")
+        text = text.replace("<ROLL:IN>", chr(27) + self.current_line + "p")
+        text = text.replace("<ROLL:OUT>", chr(27) + self.current_line + "q")
+        
+        text = text.replace("<WIPE:UP>", chr(27) + self.current_line + "i")
+        text = text.replace("<WIPE:DOWN>", chr(27) + self.current_line + "j")
+        text = text.replace("<WIPE:LEFT>", chr(27) + self.current_line + "k")
+        text = text.replace("<WIPE:RIGHT>", chr(27) + self.current_line + "l")
+        text = text.replace("<WIPE:IN>", chr(27) + self.current_line + "r")
+        text = text.replace("<WIPE:OUT>", chr(27) + self.current_line + "s")
+        
+        # Special effects
+        text = text.replace("<2LINESCROLLUP>", chr(27) + self.current_line + "m")
+        text = text.replace("<AUTO>", chr(27) + self.current_line + "o")
+        text = text.replace("<TWINKLE>", chr(27) + self.current_line + "n0")
+        text = text.replace("<SPARKLE>", chr(27) + self.current_line + "n1")
+        text = text.replace("<SNOW>", chr(27) + self.current_line + "n2")
+        text = text.replace("<INTERLOCK>", chr(27) + self.current_line + "n3")
+        text = text.replace("<SWITCH>", chr(27) + self.current_line + "n4")
+        text = text.replace("<SLIDE>", chr(27) + self.current_line + "n5")
+        text = text.replace("<SPRAY>", chr(27) + self.current_line + "n6")
+        text = text.replace("<STARBURST>", chr(27) + self.current_line + "n7")
+        
+        # Animations
+        text = text.replace("<ANIM:WELCOME>", chr(27) + self.current_line + "n8")
+        text = text.replace("<ANIM:SLOTS>", chr(27) + self.current_line + "n9")
+        text = text.replace("<ANIM:THANKYOU>", chr(27) + self.current_line + "nS")
+        text = text.replace("<ANIM:NOSMOKING>", chr(27) + self.current_line + "nU")
+        text = text.replace("<ANIM:DRINKDRIVE>", chr(27) + self.current_line + "nV")
+        text = text.replace("<ANIM:HORSE>", chr(27) + self.current_line + "nW")
+        text = text.replace("<ANIM:FIREWORKS>", chr(27) + self.current_line + "nX")
+        text = text.replace("<ANIM:TURBOCAR>", chr(27) + self.current_line + "nY")
+        text = text.replace("<ANIM:CHERRYBOMB>", chr(27) + self.current_line + "nZ")
+        
+        # Other special characters
+        text = text.replace("<DATE>", chr(11) + "8")
+        text = text.replace("<TIME>", chr(19))
+        text = text.replace("<NOHOLD>", chr(9))
+        text = text.replace("\\p", chr(12))  # Page break
+        text = text.replace("\\n", chr(13))  # New line
+        text = text.replace("<STRING>", chr(16))  # String reference
+        
+        # Handle beep commands
+        import re
+        beep_pattern = r'<BEEP:(\d+)>'
+        def replace_beep(match):
+            beep_count = int(match.group(1))
+            return self.send_beep(beep_count)
+        text = re.sub(beep_pattern, replace_beep, text)
+        
+        # Handle line positioning
+        text = text.replace("<LINE:TOP>", "\"")
+        text = text.replace("<LINE:MIDDLE>", " ")
+        text = text.replace("<LINE:BOTTOM>", "&")
+        text = text.replace("<LINE:FILL>", "0")
+        
+        return text
+    
+    def make_hex(self, num, length):
+        """Create a hex number padded to the desired number of places"""
+        hex_str = format(num, 'X')
+        return hex_str.zfill(length)
+    
+    def send_beep(self, beep_count):
+        """Generate beep command"""
+        return f"E(2022{format(beep_count - 1, 'X')}"
+    
+    def set_serial_address(self, new_address):
+        """Set the serial address of connected LED signs"""
+        return f"E7{new_address}"
+    
+    def set_run_sequence(self, sequence):
+        """Set the order of pages to display"""
+        return f"E.TU{sequence}"
+    
+    def set_string(self, label, value):
+        """Set a string variable"""
+        return f"G{label}{self.make_alpha(value)}"
+    
+    def allocate_memory(self, label, mem_type, size):
+        """Allocate memory on the Alpha sign"""
+        s = label
+        if mem_type == 1:  # ALPHA_TEXT
+            s += "A"  # Type: Text
+            s += "L"  # Locked
+            s += self.make_hex(size, 4)  # Size in hex
+            s += "FF00"  # Start/stop time
+        elif mem_type == 2:  # ALPHA_STRING
+            s += "B"  # Type: String
+            s += "L"  # Locked
+            s += self.make_hex(size, 4)  # Size in hex
+            s += "0000"  # Placeholder
+        return s
