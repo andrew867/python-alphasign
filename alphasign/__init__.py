@@ -28,5 +28,5 @@ class AlphaSign:
         # Set the sign type
         self.sign = Sign(type=type)
 
-        # Directly open the sign
+        # Directly open the sign (supports both serial and IP connections)
         self.sign.open(port)
