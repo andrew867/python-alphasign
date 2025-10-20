@@ -45,6 +45,24 @@ class AlphaSignHTTPHandler(BaseHTTPRequestHandler):
                 self.handle_status_request()
             elif path == '/help':
                 self.handle_help_request()
+            elif path == '/settime':
+                self.handle_set_time_request(query_params)
+            elif path == '/setdate':
+                self.handle_set_date_request(query_params)
+            elif path == '/sound':
+                self.handle_sound_request(query_params)
+            elif path == '/reset':
+                self.handle_reset_request()
+            elif path == '/memory':
+                self.handle_memory_request(query_params)
+            elif path == '/tone':
+                self.handle_tone_request(query_params)
+            elif path == '/runtime':
+                self.handle_runtime_request(query_params)
+            elif path == '/display':
+                self.handle_display_request(query_params)
+            elif path == '/dimming':
+                self.handle_dimming_request(query_params)
             else:
                 self.send_error(404, "Not Found")
                 
@@ -195,6 +213,9 @@ class AlphaSignHTTPHandler(BaseHTTPRequestHandler):
             if not self.sign_connection:
                 # Initialize connection
                 self.sign_connection = AlphaSign(port='192.168.133.54:10001')
+                
+                # Set date and time on the sign when connecting
+                self.set_sign_datetime()
             
             # Send the text
             Easy.Text.show(message)
@@ -202,6 +223,47 @@ class AlphaSignHTTPHandler(BaseHTTPRequestHandler):
             
         except Exception as e:
             logging.error(f"Failed to send to sign: {e}")
+            return False
+    
+    def set_sign_datetime(self):
+        """Set the current date and time on the Alpha sign"""
+        try:
+            import datetime
+            now = datetime.datetime.now()
+            
+            # Set time
+            time_cmd = self.string_processor.set_time(now)
+            self.send_raw_command(time_cmd)
+            
+            # Set weekday
+            weekday_cmd = self.string_processor.set_weekday(now.weekday())
+            self.send_raw_command(weekday_cmd)
+            
+            # Set date
+            date_cmd = self.string_processor.set_date(now)
+            self.send_raw_command(date_cmd)
+            
+            # Set time format (24-hour)
+            time_format_cmd = self.string_processor.set_time_format(ampm=False)
+            self.send_raw_command(time_format_cmd)
+            
+            logging.info(f"Set sign date/time to: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+        except Exception as e:
+            logging.warning(f"Failed to set sign date/time: {e}")
+    
+    def send_raw_command(self, command):
+        """Send a raw command to the sign"""
+        try:
+            if self.sign_connection and self.sign_connection.sign:
+                # Create complete packet
+                packet = self.string_processor.create_complete_packet(command)
+                
+                # Send the packet
+                self.sign_connection.sign.write(packet.encode('latin-1'))
+                return True
+        except Exception as e:
+            logging.error(f"Failed to send raw command: {e}")
             return False
     
     def handle_status_request(self):
@@ -233,6 +295,17 @@ Endpoints:
 - GET /AlphaSign?msg=<message> - Send message to sign
 - GET /status - Get service status
 - GET /help - Show this help
+- GET /settime?time=14:30 - Set sign time
+- GET /setdate?date=12/25/23 - Set sign date
+- GET /sound?on=true - Control sign sound
+- GET /reset - Soft reset the sign
+- GET /memory?action=info - Get memory info
+- GET /memory?action=configure - Configure memory map
+- GET /tone?type=beep&freq=1000&duration=5 - Generate tone
+- GET /runtime?label=A&start=09:00&stop=17:00 - Set run time table
+- GET /display?enabled=true&x=10&y=5&text=Hello - Display text at XY
+- GET /dimming?action=register&dim=1&brightness=80 - Set dimming register
+- GET /dimming?action=time&start=18&stop=6 - Set dimming time schedule
 
 AlphaSign Parameters:
 - msg (required): The message to display
@@ -249,6 +322,10 @@ Examples:
 - /AlphaSign?msg=Hello&color=red&effect=flash&speed=5
 - /AlphaSign?msg=Welcome&color=green&effect=twinkle&beep=3
 - /AlphaSign?msg=Alert&color=amber&effect=hold&line=top
+- /settime?time=14:30
+- /setdate?date=12/25/23
+- /sound?on=true
+- /reset
 
 Special formatting in messages:
 - <C:RED>text</C:RED> - Red text
@@ -258,12 +335,321 @@ Special formatting in messages:
 - <DATE> - Current date
 - <ANIM:WELCOME> - Welcome animation
 - <ANIM:FIREWORKS> - Fireworks animation
+
+Features:
+- Automatic date/time setting on connection
+- Full Alpha protocol support
+- Memory management
+- Sound control
+- Sign reset capability
         """
         
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
         self.wfile.write(help_text.encode())
+    
+    def handle_set_time_request(self, params):
+        """Handle set time requests"""
+        try:
+            time_str = params.get('time', [None])[0]
+            if not time_str:
+                # Use current time
+                import datetime
+                now = datetime.datetime.now()
+            else:
+                # Parse provided time (format: HH:MM or HHMM)
+                time_str = time_str.replace(':', '')
+                if len(time_str) == 4:
+                    hour = int(time_str[:2])
+                    minute = int(time_str[2:])
+                    now = datetime.datetime.now().replace(hour=hour, minute=minute)
+                else:
+                    raise ValueError("Invalid time format")
+            
+            # Set time on sign
+            time_cmd = self.string_processor.set_time(now)
+            if self.send_raw_command(time_cmd):
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    'status': 'success',
+                    'message': f'Time set to {now.strftime("%H:%M")}',
+                    'time': now.strftime('%H:%M')
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(500, "Failed to set time on sign")
+                
+        except Exception as e:
+            self.send_error(400, f"Invalid time format: {str(e)}")
+    
+    def handle_set_date_request(self, params):
+        """Handle set date requests"""
+        try:
+            date_str = params.get('date', [None])[0]
+            if not date_str:
+                # Use current date
+                import datetime
+                now = datetime.datetime.now()
+            else:
+                # Parse provided date (format: MM/DD/YY or MM-DD-YY)
+                date_str = date_str.replace('-', '/')
+                now = datetime.datetime.strptime(date_str, '%m/%d/%y')
+            
+            # Set date on sign
+            date_cmd = self.string_processor.set_date(now)
+            if self.send_raw_command(date_cmd):
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    'status': 'success',
+                    'message': f'Date set to {now.strftime("%m/%d/%y")}',
+                    'date': now.strftime('%m/%d/%y')
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(500, "Failed to set date on sign")
+                
+        except Exception as e:
+            self.send_error(400, f"Invalid date format: {str(e)}")
+    
+    def handle_sound_request(self, params):
+        """Handle sound control requests"""
+        try:
+            sound_on = params.get('on', ['false'])[0].lower() == 'true'
+            
+            # Set sound on sign
+            sound_cmd = self.string_processor.set_sound(sound_on)
+            if self.send_raw_command(sound_cmd):
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    'status': 'success',
+                    'message': f'Sound {"enabled" if sound_on else "disabled"}',
+                    'sound_on': sound_on
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(500, "Failed to set sound on sign")
+                
+        except Exception as e:
+            self.send_error(400, f"Invalid sound parameter: {str(e)}")
+    
+    def handle_reset_request(self):
+        """Handle reset requests"""
+        try:
+            # Soft reset the sign
+            reset_cmd = self.string_processor.soft_reset()
+            if self.send_raw_command(reset_cmd):
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    'status': 'success',
+                    'message': 'Sign reset successfully'
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(500, "Failed to reset sign")
+                
+        except Exception as e:
+            self.send_error(500, f"Reset failed: {str(e)}")
+    
+    def handle_memory_request(self, params):
+        """Handle memory management requests"""
+        try:
+            action = params.get('action', ['info'])[0]
+            
+            if action == 'info':
+                # Read memory size
+                memory_cmd = self.string_processor.read_memory_size()
+                if self.send_raw_command(memory_cmd):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    response = {
+                        'status': 'success',
+                        'message': 'Memory info requested',
+                        'action': 'read_memory_size'
+                    }
+                    self.wfile.write(json.dumps(response).encode())
+                else:
+                    self.send_error(500, "Failed to read memory info")
+                    
+            elif action == 'configure':
+                # Set memory map
+                memory_cmd = self.string_processor.set_memory_map()
+                if self.send_raw_command(memory_cmd):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    response = {
+                        'status': 'success',
+                        'message': 'Memory map configured',
+                        'action': 'set_memory_map'
+                    }
+                    self.wfile.write(json.dumps(response).encode())
+                else:
+                    self.send_error(500, "Failed to configure memory map")
+            else:
+                self.send_error(400, "Invalid memory action")
+                
+        except Exception as e:
+            self.send_error(500, f"Memory operation failed: {str(e)}")
+    
+    def handle_tone_request(self, params):
+        """Handle tone generation requests"""
+        try:
+            tone_type = params.get('type', ['beep'])[0]
+            freq = int(params.get('freq', ['0'])[0])
+            duration = int(params.get('duration', ['5'])[0])
+            repeat = int(params.get('repeat', ['0'])[0])
+            
+            # Map tone types to protocol values
+            tone_map = {
+                'beep': chr(0x31),
+                'custom': chr(0x32),
+                'alarm': chr(0x33)
+            }
+            
+            tone_code = tone_map.get(tone_type, chr(0x31))
+            
+            # Generate tone command
+            tone_cmd = self.string_processor.generate_tone(tone_code, freq, duration, repeat)
+            if self.send_raw_command(tone_cmd):
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    'status': 'success',
+                    'message': f'Tone generated: {tone_type}',
+                    'tone_type': tone_type,
+                    'frequency': freq,
+                    'duration': duration,
+                    'repeat': repeat
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(500, "Failed to generate tone")
+                
+        except Exception as e:
+            self.send_error(400, f"Invalid tone parameters: {str(e)}")
+    
+    def handle_runtime_request(self, params):
+        """Handle run time table requests"""
+        try:
+            label = params.get('label', ['A'])[0]
+            start = params.get('start', ['00:00'])[0]
+            stop = params.get('stop', ['23:59'])[0]
+            
+            # Convert time format
+            start_time = start.replace(':', '')
+            stop_time = stop.replace(':', '')
+            
+            # Set run time table
+            runtime_cmd = self.string_processor.set_run_time_table(label, start_time, stop_time)
+            if self.send_raw_command(runtime_cmd):
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    'status': 'success',
+                    'message': f'Run time table set for {label}',
+                    'label': label,
+                    'start': start,
+                    'stop': stop
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(500, "Failed to set run time table")
+                
+        except Exception as e:
+            self.send_error(400, f"Invalid run time parameters: {str(e)}")
+    
+    def handle_display_request(self, params):
+        """Handle display text at XY requests"""
+        try:
+            enabled = params.get('enabled', ['true'])[0].lower() == 'true'
+            x = int(params.get('x', ['0'])[0])
+            y = int(params.get('y', ['0'])[0])
+            text = params.get('text', [''])[0]
+            
+            # Display text at XY
+            display_cmd = self.string_processor.display_text_at_xy(enabled, x, y, text)
+            if self.send_raw_command(display_cmd):
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    'status': 'success',
+                    'message': f'Text displayed at ({x},{y})',
+                    'enabled': enabled,
+                    'x': x,
+                    'y': y,
+                    'text': text
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(500, "Failed to display text at XY")
+                
+        except Exception as e:
+            self.send_error(400, f"Invalid display parameters: {str(e)}")
+    
+    def handle_dimming_request(self, params):
+        """Handle dimming control requests"""
+        try:
+            action = params.get('action', ['register'])[0]
+            
+            if action == 'register':
+                # Set dimming register
+                dim = int(params.get('dim', ['0'])[0])
+                brightness = int(params.get('brightness', ['100'])[0])
+                
+                dimming_cmd = self.string_processor.set_dimming_register(dim, brightness)
+                if self.send_raw_command(dimming_cmd):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    response = {
+                        'status': 'success',
+                        'message': f'Dimming register set: dim={dim}, brightness={brightness}',
+                        'action': 'register',
+                        'dim': dim,
+                        'brightness': brightness
+                    }
+                    self.wfile.write(json.dumps(response).encode())
+                else:
+                    self.send_error(500, "Failed to set dimming register")
+                    
+            elif action == 'time':
+                # Set dimming time schedule
+                start = int(params.get('start', ['0'])[0])
+                stop = int(params.get('stop', ['23'])[0])
+                
+                dimming_cmd = self.string_processor.set_dimming_time(start, stop)
+                if self.send_raw_command(dimming_cmd):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    response = {
+                        'status': 'success',
+                        'message': f'Dimming time set: {start:02d}:00-{stop:02d}:00',
+                        'action': 'time',
+                        'start': start,
+                        'stop': stop
+                    }
+                    self.wfile.write(json.dumps(response).encode())
+                else:
+                    self.send_error(500, "Failed to set dimming time")
+            else:
+                self.send_error(400, "Invalid dimming action")
+                
+        except Exception as e:
+            self.send_error(400, f"Invalid dimming parameters: {str(e)}")
 
 class AlphaSignHTTPService:
     """Main HTTP service class"""
