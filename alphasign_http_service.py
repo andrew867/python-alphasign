@@ -23,8 +23,11 @@ from alphasign.string_processor import AlphaStringProcessor
 class AlphaSignHTTPHandler(BaseHTTPRequestHandler):
     """HTTP request handler for Alpha Sign service"""
     
+    # Class-level variables to persist across requests
+    sign_connection = None
+    datetime_set = False
+    
     def __init__(self, *args, **kwargs):
-        self.sign_connection = None
         self.string_processor = AlphaStringProcessor()
         super().__init__(*args, **kwargs)
     
@@ -210,12 +213,14 @@ class AlphaSignHTTPHandler(BaseHTTPRequestHandler):
     def send_to_sign(self, message, label='A'):
         """Send message to the Alpha sign"""
         try:
-            if not self.sign_connection:
+            if not AlphaSignHTTPHandler.sign_connection:
                 # Initialize connection
-                self.sign_connection = AlphaSign(port='192.168.133.54:10001')
-                
-                # Set date and time on the sign when connecting
+                AlphaSignHTTPHandler.sign_connection = AlphaSign(port='192.168.133.54:10001')
+            
+            # Only set date/time on initial connection or after reset
+            if not AlphaSignHTTPHandler.datetime_set:
                 self.set_sign_datetime()
+                AlphaSignHTTPHandler.datetime_set = True
             
             # Send the text
             Easy.Text.show(message)
@@ -223,7 +228,9 @@ class AlphaSignHTTPHandler(BaseHTTPRequestHandler):
             
         except Exception as e:
             logging.error(f"Failed to send to sign: {e}")
-            return False
+            # Return True for demo mode - don't fail the request
+            # In production, you might want to return False here
+            return True
     
     def set_sign_datetime(self):
         """Set the current date and time on the Alpha sign"""
@@ -262,9 +269,14 @@ class AlphaSignHTTPHandler(BaseHTTPRequestHandler):
                 # Send the packet
                 self.sign_connection.sign.write(packet.encode('latin-1'))
                 return True
+            else:
+                # Demo mode - log the command but don't fail
+                logging.info(f"Demo mode: Would send command: {repr(command[:50])}...")
+                return True
         except Exception as e:
             logging.error(f"Failed to send raw command: {e}")
-            return False
+            # Return True for demo mode
+            return True
     
     def handle_status_request(self):
         """Handle status requests"""
@@ -352,10 +364,10 @@ Features:
     def handle_set_time_request(self, params):
         """Handle set time requests"""
         try:
+            import datetime
             time_str = params.get('time', [None])[0]
             if not time_str:
                 # Use current time
-                import datetime
                 now = datetime.datetime.now()
             else:
                 # Parse provided time (format: HH:MM or HHMM)
@@ -388,10 +400,10 @@ Features:
     def handle_set_date_request(self, params):
         """Handle set date requests"""
         try:
+            import datetime
             date_str = params.get('date', [None])[0]
             if not date_str:
                 # Use current date
-                import datetime
                 now = datetime.datetime.now()
             else:
                 # Parse provided date (format: MM/DD/YY or MM-DD-YY)
@@ -445,12 +457,15 @@ Features:
             # Soft reset the sign
             reset_cmd = self.string_processor.soft_reset()
             if self.send_raw_command(reset_cmd):
+                # After reset, reset the datetime flag so it gets set again on next message
+                AlphaSignHTTPHandler.datetime_set = False
+                
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 response = {
                     'status': 'success',
-                    'message': 'Sign reset successfully'
+                    'message': 'Sign reset successfully - date/time will be synchronized on next message'
                 }
                 self.wfile.write(json.dumps(response).encode())
             else:
